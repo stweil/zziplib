@@ -21,6 +21,8 @@
 
 #include <time.h>
 
+#include <zzip/file.h> /* PATH_MAX */
+
 #define ___  {
 #define ____ }
 
@@ -71,6 +73,45 @@ static const char usage[] = /* .. */
      "  -q quite operation\n"
      "  -X restore user/owner attributes of files\n"};
 
+/*
+ * NAME: remove_dotdotslash
+ * PURPOSE: To remove any "../" components from the given pathname
+ * ARGUMENTS: path: path name with maybe "../" components
+ * RETURNS: Nothing, "path" is modified in-place
+ * NOTE: removing "../" from the path ALWAYS shortens the path, never adds to it!
+ *	Also, "path" is not used after creating it.
+ *	So modifying "path" in-place is safe to do.
+ */
+static inline void
+remove_dotdotslash(char* path)
+{
+    /* Note: removing "../" from the path ALWAYS shortens the path, never adds to it! */
+    char* dotdotslash;
+    int   warned = 0;
+
+    dotdotslash = path;
+    while ((dotdotslash = strstr(dotdotslash, "../")) != NULL) {
+        /*
+         * Remove only if at the beginning of the pathname ("../path/name")
+         * or when preceded by a slash ("path/../name"),
+         * otherwise not ("path../name..")!
+         */
+        if (dotdotslash == path || dotdotslash[-1] == '/') {
+            char *src, *dst;
+            if (! warned) {
+                /* Note: the first time through the pathname is still intact */
+                fprintf(stderr, "Removing \"../\" path component(s) in %s\n", path);
+                warned = 1;
+            }
+            /* We cannot use strcpy(), as there "The strings may not overlap" */
+            for (src = dotdotslash + 3, dst = dotdotslash; (*dst = *src) != '\0'; src++, dst++)
+                ;
+        }
+        else
+            dotdotslash += 3; /* skip this instance to prevent infinite loop */
+    }
+}
+
 static void
 zzip_mem_entry_pipe(ZZIP_MEM_DISK* disk, ZZIP_MEM_ENTRY* entry, FILE* out)
 {
@@ -88,7 +129,15 @@ zzip_mem_entry_pipe(ZZIP_MEM_DISK* disk, ZZIP_MEM_ENTRY* entry, FILE* out)
 static void
 zzip_mem_entry_make(ZZIP_MEM_DISK* disk, ZZIP_MEM_ENTRY* entry)
 {
-    FILE* file = fopen(entry->zz_name, "wb");
+    char name_stripped[PATH_MAX+1]; /* extra char for \0 in case of very long names */
+    FILE* file;
+
+    strncpy(name_stripped, entry->zz_name, PATH_MAX);
+    name_stripped[PATH_MAX]='\0';
+    remove_dotdotslash(name_stripped);
+
+    file = fopen (name_stripped, "wb");
+
     if (file) {
         zzip_mem_entry_pipe(disk, entry, file);
         fclose(file);
