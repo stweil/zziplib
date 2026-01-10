@@ -3656,11 +3656,11 @@ class ZZipTest(unittest.TestCase):
         workdir = tmpdir + "/d1/d2"
         os.makedirs(workdir)
         run = sh___("cd {workdir} && ../../../{exe} ../../{filename} ".format(**locals()),
-                    returncodes=[0])
+                    returncodes=[2])
         self.assertLess(len(run.output), 500)
         self.assertEqual(len(errors(run.errors)), 1)
         self.assertFalse(os.path.exists(tmpdir + "/test/evil.conf"))
-        self.assertTrue(os.path.exists(workdir + "/test/evil.conf"))
+        self.assertFalse(os.path.exists(workdir + "/test/evil.conf"))
         self.rm_testdir()
 
     def test_65485_list_verbose_compressed_with_directory(self) -> None:

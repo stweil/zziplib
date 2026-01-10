@@ -73,43 +73,63 @@ exitcode(int e)
     return EXIT_ERRORS;
 }
 
-/*
- * NAME: remove_dotdotslash
- * PURPOSE: To remove any "../" components from the given pathname
- * ARGUMENTS: path: path name with maybe "../" components
- * RETURNS: Nothing, "path" is modified in-place
- * NOTE: removing "../" from the path ALWAYS shortens the path, never adds to it!
- *	Also, "path" is not used after creating it.
- *	So modifying "path" in-place is safe to do.
- */
-static inline void
-remove_dotdotslash(char* path)
+/* like realpath but without resolving symlinks */
+static int
+normpath(const char *path, char *buf, size_t buflen)
 {
-    /* Note: removing "../" from the path ALWAYS shortens the path, never adds to it! */
-    char* dotdotslash;
-    int   warned = 0;
+	char *max_path, *new_path;
+	size_t path_len;
 
-    dotdotslash = path;
-    while ((dotdotslash = strstr(dotdotslash, "../")) != NULL) {
-        /*
-         * Remove only if at the beginning of the pathname ("../path/name")
-         * or when preceded by a slash ("path/../name"),
-         * otherwise not ("path../name..")!
-         */
-        if (dotdotslash == path || dotdotslash[-1] == '/') {
-            char *src, *dst;
-            if (! warned) {
-                /* Note: the first time through the pathname is still intact */
-                fprintf(stderr, "Removing \"../\" path component(s) in %s\n", path);
-                warned = 1;
-            }
-            /* We cannot use strcpy(), as there "The strings may not overlap" */
-            for (src = dotdotslash + 3, dst = dotdotslash; (*dst = *src) != '\0'; src++, dst++)
-                ;
-        }
-        else
-            dotdotslash += 3; /* skip this instance to prevent infinite loop */
-    }
+	if (path == NULL || buf == NULL || buflen < 3) {
+		return EINVAL;
+	}
+	if (*path == '\0') {
+		return ENOENT;
+	}
+	path_len = strlen(path);
+	if (path_len >= buflen - 2) {
+		return ENAMETOOLONG;
+	}
+	max_path = buf + buflen - 2; /* except end-NUL */
+	new_path = buf;
+	while (*path != '\0') {
+		/* ignore extra "/" */
+		if (*path == '/') {
+			path++;
+			continue;
+		}
+		if (*path == '.') {
+			/* ignore "./" */
+			if (path[1] == '\0' || path[1] == '/') {
+				path++;
+				continue;
+			}
+			if (path[1] == '.') {
+				if (path[2] == '\0' || path[2] == '/') {
+					path += 2;
+					/* error "../" at root */
+					if (new_path == buf)
+						return EBADMSG;
+					/* resolve "../" by removing earlier path component */
+					while (--new_path > buf && new_path[-1] != '/');
+					continue;
+				}
+			}
+		}
+		/* copy the next pathname component. */
+		while (*path != '\0' && *path != '/') {
+			if (new_path > max_path) {
+				return ENAMETOOLONG;
+			}
+			*new_path++ = *path++;
+		}
+		*new_path++ = '/';
+	}
+	/* Delete trailing slash but not a lone slash. */
+	if (new_path != buf + 1 && new_path[-1] == '/')
+		new_path--;
+	*new_path = '\0';
+	return 0; /* OK */
 }
 
 static void
@@ -130,20 +150,22 @@ makedirs(const char* name)
 FILE*
 create_fopen(char* name, char* mode, int subdirs)
 {
-    char name_stripped[PATH_MAX];
-
-    strncpy(name_stripped, name, PATH_MAX);
-    remove_dotdotslash(name_stripped);
+    char file_name[PATH_MAX];
+    int err = normpath(name, file_name, PATH_MAX);
+    if (err) {
+        fprintf(stderr, "ERROR: %s: %s\n", strerror(err), name);
+        return NULL;
+    }
 
     if (subdirs) {
-        char* p = strrchr(name_stripped, '/');
+        char* p = strrchr(file_name, '/');
         if (p) {
-            char* dir_name = _zzip_strndup(name_stripped, p - name_stripped);
+            char* dir_name = _zzip_strndup(file_name, p - file_name);
             makedirs(dir_name);
             free(dir_name);
         }
     }
-    return fopen(name_stripped, mode);
+    return fopen(file_name, mode);
 }
 
 int

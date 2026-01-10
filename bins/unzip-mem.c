@@ -73,43 +73,63 @@ static const char usage[] = /* .. */
      "  -q quite operation\n"
      "  -X restore user/owner attributes of files\n"};
 
-/*
- * NAME: remove_dotdotslash
- * PURPOSE: To remove any "../" components from the given pathname
- * ARGUMENTS: path: path name with maybe "../" components
- * RETURNS: Nothing, "path" is modified in-place
- * NOTE: removing "../" from the path ALWAYS shortens the path, never adds to it!
- *	Also, "path" is not used after creating it.
- *	So modifying "path" in-place is safe to do.
- */
-static inline void
-remove_dotdotslash(char* path)
+/* like realpath but without resolving symlinks */
+static int
+normpath(const char *path, char *buf, size_t buflen)
 {
-    /* Note: removing "../" from the path ALWAYS shortens the path, never adds to it! */
-    char* dotdotslash;
-    int   warned = 0;
+	char *max_path, *new_path;
+	size_t path_len;
 
-    dotdotslash = path;
-    while ((dotdotslash = strstr(dotdotslash, "../")) != NULL) {
-        /*
-         * Remove only if at the beginning of the pathname ("../path/name")
-         * or when preceded by a slash ("path/../name"),
-         * otherwise not ("path../name..")!
-         */
-        if (dotdotslash == path || dotdotslash[-1] == '/') {
-            char *src, *dst;
-            if (! warned) {
-                /* Note: the first time through the pathname is still intact */
-                fprintf(stderr, "Removing \"../\" path component(s) in %s\n", path);
-                warned = 1;
-            }
-            /* We cannot use strcpy(), as there "The strings may not overlap" */
-            for (src = dotdotslash + 3, dst = dotdotslash; (*dst = *src) != '\0'; src++, dst++)
-                ;
-        }
-        else
-            dotdotslash += 3; /* skip this instance to prevent infinite loop */
-    }
+	if (path == NULL || buf == NULL || buflen < 3) {
+		return EINVAL;
+	}
+	if (*path == '\0') {
+		return ENOENT;
+	}
+	path_len = strlen(path);
+	if (path_len >= buflen - 2) {
+		return ENAMETOOLONG;
+	}
+	max_path = buf + buflen - 2; /* except end-NUL */
+	new_path = buf;
+	while (*path != '\0') {
+		/* ignore extra "/" */
+		if (*path == '/') {
+			path++;
+			continue;
+		}
+		if (*path == '.') {
+			/* ignore "./" */
+			if (path[1] == '\0' || path[1] == '/') {
+				path++;
+				continue;
+			}
+			if (path[1] == '.') {
+				if (path[2] == '\0' || path[2] == '/') {
+					path += 2;
+					/* error "../" at root */
+					if (new_path == buf)
+						return EBADMSG;
+					/* resolve "../" by removing earlier path component */
+					while (--new_path > buf && new_path[-1] != '/');
+					continue;
+				}
+			}
+		}
+		/* copy the next pathname component. */
+		while (*path != '\0' && *path != '/') {
+			if (new_path > max_path) {
+				return ENAMETOOLONG;
+			}
+			*new_path++ = *path++;
+		}
+		*new_path++ = '/';
+	}
+	/* Delete trailing slash but not a lone slash. */
+	if (new_path != buf + 1 && new_path[-1] == '/')
+		new_path--;
+	*new_path = '\0';
+	return 0; /* OK */
 }
 
 static void
@@ -129,14 +149,16 @@ zzip_mem_entry_pipe(ZZIP_MEM_DISK* disk, ZZIP_MEM_ENTRY* entry, FILE* out)
 static void
 zzip_mem_entry_make(ZZIP_MEM_DISK* disk, ZZIP_MEM_ENTRY* entry)
 {
-    char name_stripped[PATH_MAX+1]; /* extra char for \0 in case of very long names */
+    char file_name[PATH_MAX];
     FILE* file;
 
-    strncpy(name_stripped, entry->zz_name, PATH_MAX);
-    name_stripped[PATH_MAX]='\0';
-    remove_dotdotslash(name_stripped);
+    int err = normpath(entry->zz_name, file_name, PATH_MAX);
+    if (err) {
+        fprintf(stderr, "ERROR: %s: %s\n", strerror(err), entry->zz_name);
+        return;
+    }
 
-    file = fopen (name_stripped, "wb");
+    file = fopen (file_name, "wb");
 
     if (file) {
         zzip_mem_entry_pipe(disk, entry, file);
