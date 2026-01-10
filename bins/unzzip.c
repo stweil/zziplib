@@ -77,7 +77,7 @@ exitcode(int e)
 static int
 normpath(const char *path, char *buf, size_t buflen)
 {
-	char *max_path, *new_path;
+	char *max_path, *new_path, *old_path;
 	size_t path_len;
 
 	if (path == NULL || buf == NULL || buflen < 3) {
@@ -92,21 +92,22 @@ normpath(const char *path, char *buf, size_t buflen)
 	}
 	max_path = buf + buflen - 2; /* except end-NUL */
 	new_path = buf;
-	while (*path != '\0') {
+    old_path = path;
+	while (*old_path != '\0') {
 		/* ignore extra "/" */
-		if (*path == '/') {
-			path++;
+		if (*old_path == '/') {
+			old_path++;
 			continue;
 		}
-		if (*path == '.') {
+		if (*old_path == '.') {
 			/* ignore "./" */
-			if (path[1] == '\0' || path[1] == '/') {
-				path++;
+			if (old_path[1] == '\0' || old_path[1] == '/') {
+				old_path++;
 				continue;
 			}
-			if (path[1] == '.') {
-				if (path[2] == '\0' || path[2] == '/') {
-					path += 2;
+			if (old_path[1] == '.') {
+				if (old_path[2] == '\0' || old_path[2] == '/') {
+					old_path += 2;
 					/* error "../" at root */
 					if (new_path == buf)
 						return EBADMSG;
@@ -117,17 +118,19 @@ normpath(const char *path, char *buf, size_t buflen)
 			}
 		}
 		/* copy the next pathname component. */
-		while (*path != '\0' && *path != '/') {
+		while (*old_path != '\0' && *old_path != '/') {
 			if (new_path > max_path) {
 				return ENAMETOOLONG;
 			}
-			*new_path++ = *path++;
+			*new_path++ = *old_path++;
 		}
 		*new_path++ = '/';
 	}
-	/* Delete trailing slash but not a lone slash. */
-	if (new_path != buf + 1 && new_path[-1] == '/')
-		new_path--;
+    if (old_path > path && old_path[-1] != '/') {
+	    /* Delete trailing slash but not a lone slash. */
+	    if (new_path != buf + 1 && new_path[-1] == '/')
+            new_path--;
+    }
 	*new_path = '\0';
 	return 0; /* OK */
 }

@@ -32,6 +32,7 @@ endif()
 option(LARGEFILEDETECT "detect 64on32 largefile" ON)
 option(LARGEFILE "64on32 largefile" OFF)
 option(COVERAGE "Code coverage" OFF)
+option(DEBUG "show debug info" OFF)
 
 if((CMAKE_BUILD_TYPE STREQUAL "Release") AND (ZZIP_LIBTOOL OR ZZIP_PKGCONFIG))
 option(ZZIP_LIBLATEST "Ensure libname.lib links to libname-REL.lib" ON)
@@ -138,6 +139,10 @@ endif()
 
 if(COVERAGE)
 append_coverage_compiler_flags()
+endif()
+
+if(DEBUG)
+add_compile_definitions(DEBUG)
 endif()
 
 # Zlib library needed

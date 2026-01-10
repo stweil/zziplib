@@ -21,6 +21,7 @@ option(FINDPKGCONFIG "search zziplib via pkg-config (from automake)" OFF)
 option(FINDPKGCMAKE "search zziplib as external package (form cmake)" OFF)
 option(LARGEFILE "64on32 largefile" OFF)
 option(COVERAGE "Code coverage" OFF)
+option(DEBUG "show debug info" OFF)
 
 if(COVERAGE)
 include ( CodeCoverage )
@@ -40,6 +41,10 @@ endif()
 
 if(COVERAGE)
 append_coverage_compiler_flags()
+endif()
+
+if(DEBUG)
+add_compile_definitions(DEBUG)
 endif()
 
 if(LARGEFILE)
