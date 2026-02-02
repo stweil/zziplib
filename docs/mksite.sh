@@ -69,7 +69,7 @@ export LANG LANGUAGE LC_COLLATE              # lowercasing as some collate
 HTMLTAGS=" a p h1 h2 h3 h4 h5 h6 dl dd dt ul ol li pre code table tr td th"
 HTMLTAGS=" $HTMLTAGS b u i s q em strong strike cite big small sup sub tt"
 HTMLTAGS=" $HTMLTAGS thead tbody center hr br nobr wbr"
-HTMLTAGS=" $HTMLTAGS span div img adress blockquote"
+HTMLTAGS=" $HTMLTAGS span div img address blockquote"
 HTMLTAGS2=" html head body title meta http-equiv style link"
 
 # ==========================================================================
@@ -1090,7 +1090,7 @@ from_sourcefile ()
     
 html_sourcefile ()  # generally just cut away the trailing "l" (ell)
 {                   # making "page.html" argument into "page.htm" return
-                    # (as a new addtion the source may be in ".dbk" xml)
+                    # (as a new addition the source may be in ".dbk" xml)
     _SRCFILE_=`echo "$1" | $SED -e "s/l\\$//"`
     _XMLFILE_=`echo "$1" | $SED -e "s/\\.html/.dbk/"`
     if test -f "$_SRCFILE_" 

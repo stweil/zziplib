@@ -60,7 +60,7 @@ my $QX = "/q";
 
 my @HTMLTAGS = qw/a p h1 h2 h3 h4 h5 h6 dl dd dt ul ol li pre code 
     table tr td th b u i s q em strong strike cite big small sup sub tt
-    thead tbody center hr br nobr wbr span div img adress blockquote/;
+    thead tbody center hr br nobr wbr span div img address blockquote/;
 my @HTMLTAGS2 = qw/html head body title meta http-equiv style link/;
 
 # ==========================================================================
@@ -490,7 +490,7 @@ sub info2vars_sed      # generate <!--$vars--> substition sed addon script
     my $V1="([^<>]*)\\\$";
     my $V2="([^{<>}]*)";
     my $V3="([^<>]*)";
-    my $SS="<"."<>".">"; # spacer so value="2004" dont make for s|\(...\)|\12004|
+    my $SS="<"."<>".">"; # spacer so value="2004" don't make for s|\(...\)|\12004|
     $Z="\$Z=";
     $updatevars = "no" if $commentvars  eq "no";   # duplicated from
     $expandvars = "no" if $commentvars  eq "no";   # option handling
